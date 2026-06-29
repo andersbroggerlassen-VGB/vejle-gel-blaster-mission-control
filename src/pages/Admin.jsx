@@ -6,7 +6,16 @@ import { getRemainingSeconds } from '../lib/time';
 const sound = (type) => patchState({ soundEvent: { type, at: Date.now() } });
 export default function Admin({ state }) {
   const setField = (key, value) => patchState({ [key]: value });
-  const start = () => patchState({ status: 'LIVE', remaining: Number(state.duration), endsAt: Date.now() + Number(state.duration) * 1000, soundEvent: { type: 'start', at: Date.now() } });
+ const start = () => {
+  const duration = Number(state.duration || state.remaining || 900);
+  patchState({
+    status: 'LIVE',
+    duration,
+    remaining: duration,
+    endsAt: Date.now() + duration * 1000,
+    soundEvent: { type: 'start', at: Date.now() }
+  });
+};
   const pauseResume = () => {
     if (state.status === 'LIVE') return patchState({ status: 'PAUSED', remaining: getRemainingSeconds(state), endsAt: null });
     if (state.status === 'PAUSED') return patchState({ status: 'LIVE', endsAt: Date.now() + Number(state.remaining) * 1000 });
