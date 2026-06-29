@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import Layout from '../components/Layout.jsx';
 import Panel from '../components/Panel.jsx';
 import { patchState, resetState } from '../lib/firebase';
@@ -5,6 +6,20 @@ import { getRemainingSeconds } from '../lib/time';
 
 const sound = (type) => patchState({ soundEvent: { type, at: Date.now() } });
 export default function Admin({ state }) {
+  useEffect(() => {
+    if (state.status !== 'LIVE' || !state.endsAt) return;
+
+    const id = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((state.endsAt - Date.now()) / 1000));
+
+      patchState({
+        remaining,
+        status: remaining <= 0 ? 'COMPLETE' : 'LIVE'
+      });
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [state.status, state.endsAt]);
   const setField = (key, value) => patchState({ [key]: value });
  const start = () => {
   const duration = Number(state.duration || state.remaining || 900);
