@@ -1,6 +1,6 @@
-export function getRemainingSeconds(state, now = Date.now()) {
+export function getRemainingSeconds(state) {
   if (state.status === 'LIVE' && state.endsAt) {
-    return Math.max(0, Math.ceil((Number(state.endsAt) - now) / 1000));
+    return Math.max(0, Math.ceil((state.endsAt - Date.now()) / 1000));
   }
   return Math.max(0, Number(state.remaining ?? state.duration ?? 900));
 }
