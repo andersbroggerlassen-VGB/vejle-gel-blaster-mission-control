@@ -1,16 +1,17 @@
-# Vejle Gel Blaster Mission Control 1.0
+# Vejle Gel Blaster Mission Control
 
-Statisk Netlify-app med Firebase Realtime Database.
+React + Vite + Firebase Realtime Database.
 
-## Deploy
-Upload alle filer til GitHub main. Netlify deployer automatisk.
+## Netlify
+Build command: `npm run build`
+Publish directory: `dist`
 
 ## Sider
-- index.html
-- admin.html
-- score.html
-- briefing.html
-- map.html
-- camera-red.html
-- camera-blue.html
-- camera-overview.html
+- `/` dashboard
+- `/admin` adminpanel
+- `/score` scoreboard
+- `/briefing` mission briefing
+- `/map` banekort
+- `/camera-red` rød kamera
+- `/camera-blue` blå kamera
+- `/camera-overview` overblikskamera
