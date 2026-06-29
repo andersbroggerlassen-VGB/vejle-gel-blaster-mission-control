@@ -1,4 +1,5 @@
-
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getDatabase, ref, onValue, update, set, get } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyA83faZQ7gUY7zu0f1E7N7uThyLyDRWHAk",
@@ -11,40 +12,100 @@ const firebaseConfig = {
   measurementId: "G-GHFWYTPRT6"
 };
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue, set, update, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const stateRef = ref(db, 'missionControl/state');
-const defaultState = {
-  brand:'VEJLE GEL BLASTER', status:'READY', mission:'CAPTURE THE FLAG', briefing:'Eliminér modstanderen, beskyt egen base og erobr flaget i midten. Respektér sikkerhedsreglerne. Masker på. Ingen skud på kort afstand.',
-  redName:'RØDT HOLD', blueName:'BLÅT HOLD', redScore:0, blueScore:0, duration:900, remaining:900, startedAt:0, pausedAt:0,
-  cameraRed:'', cameraBlue:'', cameraOverview:'', sound:'none', winner:'', mapTitle:'BANEKORT - OUTDOOR ARENA'
+const gameRef = ref(db, 'missionControl/current');
+
+const defaults = {
+  mission: 'Operation Alpha',
+  missionType: 'Capture the Flag',
+  briefing: 'Find flaget, bring det tilbage til jeres base og beskyt holdet.',
+  redName: 'RØDT HOLD',
+  blueName: 'BLÅT HOLD',
+  redScore: 0,
+  blueScore: 0,
+  duration: 900,
+  remaining: 900,
+  startedAt: 0,
+  status: 'READY',
+  winner: '',
+  cameraRed: '',
+  cameraBlue: '',
+  cameraOverview: '',
+  mapUrl: '',
+  sound: '',
+  updatedAt: Date.now()
 };
-let current={...defaultState};let timerInt=null;
-export function subscribe(cb){onValue(stateRef, async snap=>{if(!snap.exists()){await set(stateRef, defaultState);return} current={...defaultState,...snap.val()}; cb(current); });}
-export function save(patch){return update(stateRef, patch)}
-export function resetAll(){return set(stateRef, defaultState)}
-export function startMission(){
-  const now=Date.now();
-  const rem = (current.status==='PAUSED' && current.remaining) ? current.remaining : (current.remaining || current.duration);
-  return update(stateRef,{status:'LIVE',startedAt:now,pausedAt:0,winner:'',remaining:rem});
-}
-export function pauseMission(){
-  let rem=current.remaining||current.duration;
-  if(current.status==='LIVE' && current.startedAt){
-    const elapsed=Math.floor((Date.now()-current.startedAt)/1000);
-    rem=Math.max(0,(current.remaining||current.duration)-elapsed);
+
+let state = { ...defaults };
+let listeners = [];
+let interval = null;
+
+function now(){ return Date.now(); }
+function calcRemaining(s = state){
+  if (s.status === 'LIVE' && s.startedAt) {
+    const elapsed = Math.floor((now() - s.startedAt) / 1000);
+    return Math.max(0, (s.remaining ?? s.duration ?? 900) - elapsed);
   }
-  return update(stateRef,{status:'PAUSED',pausedAt:Date.now(),startedAt:0,remaining:rem});
+  return Math.max(0, s.remaining ?? s.duration ?? 900);
 }
-export function togglePauseResume(){
-  if(current.status==='LIVE') return pauseMission();
+function fmt(sec){
+  sec = Math.max(0, Number(sec || 0));
+  const m = Math.floor(sec / 60).toString().padStart(2,'0');
+  const s = Math.floor(sec % 60).toString().padStart(2,'0');
+  return `${m}:${s}`;
+}
+function save(patch){ return update(gameRef, { ...patch, updatedAt: now() }); }
+async function ensure(){
+  const snap = await get(gameRef);
+  if(!snap.exists()) await set(gameRef, defaults);
+}
+function subscribe(cb){
+  listeners.push(cb);
+  cb(state);
+  onValue(gameRef, snap => {
+    state = { ...defaults, ...(snap.val() || {}) };
+    listeners.forEach(fn => fn(state));
+  });
+}
+function startMission(){
+  const rem = state.status === 'PAUSED' ? calcRemaining(state) : (state.duration || 900);
+  return save({ status:'LIVE', winner:'', remaining: rem, startedAt: now(), sound:'start-' + now() });
+}
+function pauseResume(){
+  if(state.status === 'LIVE') return save({ status:'PAUSED', remaining: calcRemaining(state), startedAt:0, sound:'pause-' + now() });
+  if(state.status === 'PAUSED') return save({ status:'LIVE', startedAt: now(), sound:'resume-' + now() });
   return startMission();
 }
-export function stopMission(){let winner=current.redScore===current.blueScore?'UAFGJORT':(current.redScore>current.blueScore?current.redName:current.blueName); return update(stateRef,{status:'COMPLETE',winner})}
-export function tickLocal(render){clearInterval(timerInt); timerInt=setInterval(()=>{let s=current;if(s.status==='LIVE'&&s.startedAt){let elapsed=Math.floor((Date.now()-s.startedAt)/1000);let rem=Math.max(0,(s.remaining||s.duration)-elapsed);render(rem); if(rem<=0) stopMission();}else render(s.remaining||s.duration)},500)}
-export function fmt(sec){sec=Math.max(0,Math.floor(sec||0));let m=String(Math.floor(sec/60)).padStart(2,'0');let s=String(sec%60).padStart(2,'0');return `${m}:${s}`}
-export function playBeep(kind='start'){try{const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(); const g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=kind==='alarm'?220:kind==='complete'?520:880; g.gain.setValueAtTime(.0001,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.18,ctx.currentTime+.02); g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.45); o.start(); o.stop(ctx.currentTime+.5)}catch(e){}}
-export function embed(el,url,label){if(!el)return; if(!url){el.innerHTML=`<div class="placeholder">${label}<br><span style="font-size:18px">Indsæt stream-link i admin</span></div>`;return} if(url.includes('youtube')||url.includes('vimeo')||url.includes('iframe')) el.innerHTML=`<iframe src="${url}" allow="autoplay; fullscreen"></iframe>`; else el.innerHTML=`<video src="${url}" autoplay muted playsinline controls></video>`;}
-window.MC={subscribe,save,resetAll,startMission,pauseMission,togglePauseResume,stopMission,tickLocal,fmt,playBeep,embed};
+function stopMission(){
+  const r = calcRemaining(state);
+  let winner = '';
+  if((state.redScore||0) > (state.blueScore||0)) winner = state.redName;
+  if((state.blueScore||0) > (state.redScore||0)) winner = state.blueName;
+  if(!winner) winner = 'UAFGJORT';
+  return save({ status:'COMPLETE', remaining:r, startedAt:0, winner, sound:'complete-' + now() });
+}
+function resetAll(){ return set(gameRef, { ...defaults, updatedAt: now() }); }
+function tick(cb){
+  clearInterval(interval);
+  interval = setInterval(() => {
+    const rem = calcRemaining(state);
+    cb(rem, state);
+    if(state.status === 'LIVE' && rem <= 0) stopMission();
+  }, 250);
+}
+function playLocalSound(type){
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const tones = type.includes('alarm') ? [440, 660, 440, 660] : type.includes('complete') ? [523,659,784] : [330,440,660];
+  tones.forEach((f,i)=>{
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.frequency.value=f; o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime+i*.18);
+    g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime+i*.18+.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+i*.18+.15);
+    o.start(ctx.currentTime+i*.18); o.stop(ctx.currentTime+i*.18+.16);
+  });
+}
+
+ensure();
+window.MC = { subscribe, save, startMission, pauseResume, stopMission, resetAll, tick, fmt, calcRemaining, playLocalSound, defaults };
