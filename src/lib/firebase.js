@@ -1,16 +1,26 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, update } from 'firebase/database';
 
-const firebaseConfig = {
-  apiKey: "AIzaSyA83faZQ7gUY7zu0f1E7N7uThyLyDRWHAk",
-  authDomain: "vejle-gel-blaster.firebaseapp.com",
-  databaseURL: "https://vejle-gel-blaster-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "vejle-gel-blaster",
-  storageBucket: "vejle-gel-blaster.firebasestorage.app",
-  messagingSenderId: "616189849145",
-  appId: "1:616189849145:web:6c03f05afcbde48501a7e8",
-  measurementId: "G-GHFWYTPRT6"
+const requiredEnv = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+const missing = Object.entries(requiredEnv)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missing.length) {
+  console.error('Missing Firebase environment variables:', missing);
+}
+
+const firebaseConfig = requiredEnv;
 
 export const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
